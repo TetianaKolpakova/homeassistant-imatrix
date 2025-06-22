@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
 from homeassistant.helpers.entity import DeviceInfo
@@ -52,7 +53,6 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
     try:
         things_url = f"{API_BASE}/things?page=1&per_page=100"
-        _LOGGER.debug("Requesting things from %s", things_url)
         resp = await session.get(things_url, headers=headers, ssl=False)
         data = await resp.json()
         things = data.get("list", [])
@@ -64,7 +64,6 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
             firmware = thing.get("currentVersion")
             mac = thing.get("mac")
             product_url = f"{API_BASE}/things/{sn}/product"
-            _LOGGER.debug("Requesting product info from %s", product_url)
             prod_resp = await session.get(product_url, headers=headers, ssl=False)
             prod_data = await prod_resp.json()
             short_name = prod_data.get("shortName") or "Unknown"
@@ -82,21 +81,28 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                 configuration_url=f"https://app.imatrixsys.com/things/{sn}"
             )
 
-
             last_url = f"{API_BASE}/things/{sn}/sensors/last"
-            _LOGGER.debug("Requesting last sensor data from %s", last_url)
             last_resp = await session.get(last_url, headers=headers, ssl=False)
             last_json = await last_resp.json()
             sensors_values = last_json.get(str(sn), {}).get("sensorsData", {})
 
+            checkin_timestamp = last_json.get(str(sn), {}).get("lastSeen")
+
+            if checkin_timestamp:
+                last_seen = IMatrixLastSeenSensor(
+                    thing_sn=sn,
+                    thing_name=name,
+                    device_info=device_info,
+                    checkin_ts=checkin_timestamp
+                )
+                entities_to_add.append(last_seen)
+
             sensors_url = f"{API_BASE}/things/{sn}/sensors"
-            _LOGGER.debug("Requesting sensors from %s", sensors_url)
             sensors_resp = await session.get(sensors_url, headers=headers, ssl=False)
             sensors_list = await sensors_resp.json()
 
             for sensor_meta in sensors_list:
                 unit = sensor_meta.get("units")
-                _LOGGER.debug("Sensor %s unit reported as '%s'", sensor_meta.get("name"), unit)
                 sid = sensor_meta.get("id")
                 if str(sid) not in sensors_values:
                     continue
@@ -166,6 +172,33 @@ class IMatrixTamperBinarySensorEntity(BinarySensorEntity):
             pass
 
 
+class IMatrixLastSeenSensor(SensorEntity):
+    _attr_should_poll = True
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(self, thing_sn, thing_name, device_info, checkin_ts):
+        self._sn = thing_sn
+        self._thing = thing_name
+        self._device_info = device_info
+        self._checkin = checkin_ts
+        self._attr_name = f"{thing_name}: Last Seen"
+        self._attr_unique_id = f"imatrix_{thing_sn}_last_seen"
+        self._attr_native_value = self.native_value
+
+    @property
+    def device_info(self):
+        return self._device_info
+
+    @property
+    def native_value(self):
+        if not self._checkin:
+            return None
+        return datetime.fromtimestamp(self._checkin / 1000, tz=timezone.utc)
+
+    async def async_update(self):
+        pass
+
+
 class IMatrixSensorEntity(SensorEntity):
     _attr_should_poll = True
 
@@ -209,7 +242,6 @@ class IMatrixSensorEntity(SensorEntity):
             val = float(self._value)
         except Exception:
             return None
-        _LOGGER.debug("Rounding '%s' value=%s unit=%s", self.name, val, self._unit)
         if self._unit in ("Seconds", "s", "Count", "Thing(s)"):
             return round(val)
         elif self._unit in ("Volts", "V"):
