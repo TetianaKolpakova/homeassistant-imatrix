@@ -1,0 +1,14 @@
+{
+  "domain": "imatrix",
+  "name": "iMatrix Systems Integration",
+  "version": "1.0.0",
+  "documentation": "https://github.com/TetianaKolpakova/homeassistant-imatrix",
+  "requirements": [],
+  "dependencies": [],
+  "codeowners": ["@TetianaKolpakova"],
+  "config_flow": true,
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "platforms": ["sensor"]
+
+}
