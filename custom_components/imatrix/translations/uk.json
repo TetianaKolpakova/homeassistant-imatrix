@@ -1,0 +1,18 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Підключення до iMatrix",
+        "description": "Введіть облікові дані iMatrix",
+        "data": {
+          "email": "Електронна пошта",
+          "password": "Пароль"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Неправильна електронна пошта або пароль",
+      "cannot_connect": "Не вдалося підключитися до API iMatrix"
+    }
+  }
+}

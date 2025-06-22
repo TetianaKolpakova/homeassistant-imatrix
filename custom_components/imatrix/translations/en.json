@@ -12,7 +12,7 @@
     },
     "error": {
       "invalid_auth": "Invalid email or password",
-      "cannot_connect": "Cannot connect to iMatrix API"
+      "cannot_connect": "Unable to connect"
     }
   }
 }
