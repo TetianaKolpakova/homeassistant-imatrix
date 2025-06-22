@@ -62,6 +62,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
             sn = thing.get("sn")
             name = thing.get("name", f"Thing {sn}")
             firmware = thing.get("currentVersion")
+            mac = thing.get("mac")
             product_url = f"{API_BASE}/things/{sn}/product"
             _LOGGER.debug("Requesting product info from %s", product_url)
             prod_resp = await session.get(product_url, headers=headers, ssl=False)
@@ -76,7 +77,11 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                 manufacturer="iMatrix",
                 model=short_name,
                 sw_version=firmware,
+                serial_number=str(sn),
+                connections={("mac", mac)},
+                configuration_url=f"https://app.imatrixsys.com/things/{sn}"
             )
+
 
             last_url = f"{API_BASE}/things/{sn}/sensors/last"
             _LOGGER.debug("Requesting last sensor data from %s", last_url)
