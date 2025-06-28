@@ -76,7 +76,7 @@ Login form available in English and Ukrainian.
 
 ## License
 
-MIT License © 2025 — [Your Name or GitHub Username]
+MIT License © 2025 — @TetianaKolpakova
 
 ---
 
