@@ -1,0 +1,8 @@
+{
+  "name": "iMatrix Integration",
+  "content_in_root": false,
+  "domains": ["imatrix"],
+  "homeassistant": "2023.0.0",
+  "country": "US",
+  "render_readme": true
+}
