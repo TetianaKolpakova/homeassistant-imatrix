@@ -2,6 +2,8 @@ import logging
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.exceptions import ConfigEntryNotReady
+
 from .const import DOMAIN, API_BASE
 
 _LOGGER = logging.getLogger(__name__)
@@ -38,12 +40,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         }
 
         _LOGGER.info("🔑 iMatrix login successful — token starts with: %s", token[:15])
-        await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
+        try:
+            await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
+        except ValueError as e:
+            _LOGGER.warning("⚠️ Platform already set up: %s", e)
+
         return True
 
     except Exception as e:
         _LOGGER.exception("💥 iMatrix: Error during login: %s", e)
-        return False
+        raise ConfigEntryNotReady from e
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     if DOMAIN in hass.data:
