@@ -45,7 +45,7 @@ For authentication, the integration requires your **email** and **password** for
 - [NEO-1P](https://imatrixsys.com/neo-1p/)
 - [NEO-1D](https://imatrixsys.com/neo-1d/)
 - [NEO-1DP](https://imatrixsys.com/neo-1dp/)
-~~- [Sentry-1](https://imatrixsys.com/sentry-1/)~~ (needs more testing)
+- ~~[Sentry-1](https://imatrixsys.com/sentry-1/)~~ (needs more testing)
 
 Supported sensor types include:
 
@@ -86,7 +86,7 @@ Login form available in English and Ukrainian.
 
 ## License
 
-MIT License © 2025 — @TetianaKolpakova
+MIT License © 2025 - @TetianaKolpakova
 
 ---
 
