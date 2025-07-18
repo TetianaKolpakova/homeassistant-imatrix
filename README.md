@@ -21,21 +21,31 @@ iMatrix offers a wide range of sensors such as:
 This integration allows you to:
 
 - 🔐 Log in to your [iMatrix Cloud](https://app.imatrixsys.com/) account
-- 📡 Discover all registered devices 
+- 📡 Discover all registered devices
 - 📈 Automatically fetch all active sensors per device
 - 🔁 Poll sensor readings every 30 seconds
 - 🧠 Display sensor states with correct units and formatting
 - ✅ Visualize device model, firmware, and serial in the UI
 - 🔔 Support binary tamper sensors (pressed/released)
 - 🌐 Display icons per unit type and per sensor name (e.g., door icons for open counters)
+- 🔄 Automatically refresh authentication token if it expires
+
+## Security & Credentials
+
+For authentication, the integration requires your **email** and **password** for the iMatrix Cloud. These credentials are:
+- **Stored only in Home Assistant’s internal memory** (inside `hass.data`) and never transmitted to any third party.
+- **Used exclusively to request a new token** from `https://api.imatrixsys.com/api/v1/login` when the current token expires.
+- Not saved in plain text on disk, except as part of the Home Assistant configuration entry (encrypted by HA's internal mechanisms).
+
+> **Note:** Your password is never sent to any location except iMatrix's official API endpoint, and only for the purpose of generating a new token.
 
 ## Supported Devices:
- - [Micro Gateway](https://imatrixsys.com/micro-gateway/)
- - [NEO-1](https://imatrixsys.com/neo-1/)
- - [NEO-1P](https://imatrixsys.com/neo-1p/)
- - [NEO-1D](https://imatrixsys.com/neo-1d/)
- - [NEO-1DP](https://imatrixsys.com/neo-1dp/)
- - [Sentry-1](https://imatrixsys.com/sentry-1/)
+- [Micro Gateway](https://imatrixsys.com/micro-gateway/)
+- [NEO-1](https://imatrixsys.com/neo-1/)
+- [NEO-1P](https://imatrixsys.com/neo-1p/)
+- [NEO-1D](https://imatrixsys.com/neo-1d/)
+- [NEO-1DP](https://imatrixsys.com/neo-1dp/)
+~~- [Sentry-1](https://imatrixsys.com/sentry-1/)~~ (needs more testing)
 
 Supported sensor types include:
 
@@ -66,7 +76,7 @@ This integration supports configuration via UI only (Config Flow). No YAML confi
 
 ## Localization
 
-Login form available in English and Ukrainian. 
+Login form available in English and Ukrainian.
 
 ## Known Limitations
 
@@ -81,4 +91,3 @@ MIT License © 2025 — @TetianaKolpakova
 ---
 
 🔗 Learn more at [https://imatrixsys.com](https://imatrixsys.com)
-
