@@ -40,6 +40,7 @@ DEVICE_CLASS_MAP = {
     "Level": SensorDeviceClass.BATTERY,
 }
 
+
 async def async_setup_entry(hass, config_entry, async_add_entities):
     entry_data = hass.data.get(DOMAIN, {}).get(config_entry.entry_id)
     if not entry_data:
@@ -48,26 +49,18 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
     session = entry_data.get("session")
     token = entry_data.get("token")
-    email = entry_data.get("email")
-    password = entry_data.get("password")
     headers = {"x-auth-token": token}
     entities_to_add = []
 
     try:
         things_url = f"{API_BASE}/things?page=1&per_page=100"
-        if _LOGGER.isEnabledFor(logging.DEBUG):
-            _LOGGER.debug("🌐 Requesting iMatrix things from: %s", things_url)
+        _LOGGER.debug("🌐 Requesting iMatrix things from: %s", things_url)
         things_resp = await session.get(things_url, headers=headers, ssl=False)
         if things_resp.status == 401:
-            _LOGGER.warning("⛔ Token expired, refreshing...")
-            token = await _refresh_token(session, email, password)
-            if token:
-                headers["x-auth-token"] = token
-                hass.data[DOMAIN][config_entry.entry_id]["token"] = token
-                things_resp = await session.get(things_url, headers=headers, ssl=False)
-            else:
-                _LOGGER.error("❌ Failed to refresh token for iMatrix")
-                return
+            _LOGGER.error("⛔ Unauthorized (401). Reloading iMatrix integration...")
+            hass.async_create_task(hass.config_entries.async_reload(config_entry.entry_id))
+            return
+
         things_data = await things_resp.json()
         things = things_data.get("list", [])
         _LOGGER.info("✅ Found %d things", len(things))
@@ -79,6 +72,11 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
             mac = thing.get("mac")
             product_url = f"{API_BASE}/things/{sn}/product"
             prod_resp = await session.get(product_url, headers=headers, ssl=False)
+            if prod_resp.status == 401:
+                _LOGGER.error("⛔ Unauthorized (401) when requesting product info. Reloading integration...")
+                hass.async_create_task(hass.config_entries.async_reload(config_entry.entry_id))
+                return
+
             prod_data = await prod_resp.json()
             short_name = prod_data.get("shortName") or "Unknown"
             device_icon = prod_data.get("iconUrl")
@@ -99,6 +97,11 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
             # Last seen
             last_url = f"{API_BASE}/things/{sn}/sensors/last"
             last_resp = await session.get(last_url, headers=headers, ssl=False)
+            if last_resp.status == 401:
+                _LOGGER.error("⛔ Unauthorized (401) when requesting last sensor data. Reloading integration...")
+                hass.async_create_task(hass.config_entries.async_reload(config_entry.entry_id))
+                return
+
             last_json = await last_resp.json()
             sensors_values = last_json.get(str(sn), {}).get("sensorsData", {})
             last_seen_ts = last_json.get(str(sn), {}).get("lastSeen")
@@ -109,6 +112,11 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
             # Sensors
             sensors_url = f"{API_BASE}/things/{sn}/sensors"
             sensors_resp = await session.get(sensors_url, headers=headers, ssl=False)
+            if sensors_resp.status == 401:
+                _LOGGER.error("⛔ Unauthorized (401) when requesting sensors list. Reloading integration...")
+                hass.async_create_task(hass.config_entries.async_reload(config_entry.entry_id))
+                return
+
             sensors_list = await sensors_resp.json()
             for sensor_meta in sensors_list:
                 sid = sensor_meta.get("id")
@@ -134,18 +142,6 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
     if entities_to_add:
         async_add_entities(entities_to_add)
-
-
-async def _refresh_token(session, email: str, password: str) -> str | None:
-    try:
-        resp = await session.post(
-            f"{API_BASE}/login", json={"email": email, "password": password}, ssl=False
-        )
-        data = await resp.json()
-        return data.get("token")
-    except Exception as e:
-        _LOGGER.exception("💥 Error refreshing token: %s", e)
-        return None
 
 
 class IMatrixLastSeenSensor(SensorEntity):
@@ -208,6 +204,12 @@ class IMatrixTamperBinarySensorEntity(BinarySensorEntity):
         try:
             url = f"{API_BASE}/things/{self._sn}/sensors/last"
             resp = await self._session.get(url, headers=self._headers, ssl=False)
+            if resp.status == 401:
+                _LOGGER.error("⛔ Unauthorized (401) while updating tamper sensor %s. Reloading integration...", self.name)
+                self.hass.async_create_task(
+                    self.hass.config_entries.async_reload(self.platform.config_entry.entry_id)
+                )
+                return
             data = await resp.json()
             raw = data.get(str(self._sn), {}).get("sensorsData", {}).get(str(self._sensor_id), {}).get("value")
             self._value = float(raw)
@@ -267,11 +269,12 @@ class IMatrixSensorEntity(SensorEntity):
     async def async_update(self):
         try:
             url = f"{API_BASE}/things/{self._sn}/sensors/last"
-            if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug("🔄 Fetching latest sensor values from %s", url)
             resp = await self._session.get(url, headers=self._headers, ssl=False)
             if resp.status == 401:
-                _LOGGER.warning("⛔ Token expired during update for %s", self.name)
+                _LOGGER.error("⛔ Unauthorized (401) while updating %s. Reloading integration...", self.name)
+                self.hass.async_create_task(
+                    self.hass.config_entries.async_reload(self.platform.config_entry.entry_id)
+                )
                 return
             data = await resp.json()
             raw_val = data.get(str(self._sn), {}).get("sensorsData", {}).get(str(self._sensor_id), {}).get("value")

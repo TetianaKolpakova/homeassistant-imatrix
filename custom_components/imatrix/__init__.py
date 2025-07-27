@@ -3,23 +3,46 @@ from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.exceptions import ConfigEntryNotReady
+
 from .const import DOMAIN, API_BASE
 
 _LOGGER = logging.getLogger(__name__)
 
+
 async def async_setup(hass: HomeAssistant, config: dict):
     return True
 
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+    # Якщо інтеграція для цього entry вже налаштована
+    if entry.entry_id in hass.data.get(DOMAIN, {}):
+        _LOGGER.warning("⚠️ Platform for %s already set up", entry.entry_id)
+        return True
+
     session = async_get_clientsession(hass)
     email = entry.data.get("email")
     password = entry.data.get("password")
 
     try:
-        # Використовуємо функцію оновлення токена
-        token = await _refresh_token(session, email, password)
+        login_url = f"{API_BASE}/login"
+        _LOGGER.debug("🔑 Logging in to iMatrix API: %s", login_url)
+
+        auth_response = await session.post(
+            login_url,
+            json={"email": email, "password": password},
+            ssl=False
+        )
+
+        if auth_response.status == 401:
+            _LOGGER.error("⛔ Unauthorized (401) on login. Reloading integration...")
+            hass.async_create_task(hass.config_entries.async_reload(entry.entry_id))
+            return False
+
+        auth_data = await auth_response.json()
+        token = auth_data.get("token")
+
         if not token:
-            _LOGGER.error("❌ iMatrix login failed for user: %s", email)
+            _LOGGER.error("❌ iMatrix login failed: %s", auth_data)
             return False
 
         if DOMAIN not in hass.data:
@@ -33,6 +56,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         }
 
         _LOGGER.info("🔑 iMatrix login successful — token starts with: %s", token[:15])
+
         try:
             await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
         except ValueError as e:
@@ -44,29 +68,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         _LOGGER.exception("💥 iMatrix: Error during login: %s", e)
         raise ConfigEntryNotReady from e
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
-    if DOMAIN in hass.data:
-        hass.data[DOMAIN].pop(entry.entry_id, None)
-    return True
 
-async def _refresh_token(session, email: str, password: str) -> str | None:
-    """
-    Виконує повторну авторизацію для отримання нового токена.
-    """
-    try:
-        login_url = f"{API_BASE}/login"
-        _LOGGER.debug("🔄 Refreshing token at: %s", login_url)
-        resp = await session.post(login_url, json={"email": email, "password": password}, ssl=False)
-        if resp.status != 200:
-            _LOGGER.warning("⚠️ Login failed with HTTP %s", resp.status)
-            return None
-        data = await resp.json()
-        token = data.get("token")
-        if token:
-            _LOGGER.info("🔐 Token successfully refreshed for user %s", email)
-        else:
-            _LOGGER.error("❌ Failed to retrieve token: %s", data)
-        return token
-    except Exception as e:
-        _LOGGER.exception("💥 Error refreshing token: %s", e)
-        return None
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, ["sensor"])
+    if unload_ok:
+        hass.data[DOMAIN].pop(entry.entry_id, None)
+    return unload_ok

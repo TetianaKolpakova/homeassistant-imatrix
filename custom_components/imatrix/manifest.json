@@ -1,7 +1,7 @@
 {
   "domain": "imatrix",
   "name": "iMatrix Systems",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "documentation": "https://github.com/TetianaKolpakova/homeassistant-imatrix",
   "requirements": [],
   "dependencies": [],
