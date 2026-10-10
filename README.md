@@ -54,8 +54,15 @@ Supported sensor types include:
 - Pressure (`kPa`)
 - Voltage (`V`)
 - Duration (`s`)
-- Counters (`Count`)
-- Connected Devices  (`Thing(s)`)
+- Counters and connected device counts (unitless)
+
+## Stable sensor units (1.1.2)
+
+Known sensor names define stable units even when the API changes unit spelling or returns an empty/unrecognized unit. Temperature uses `°C`; RX/TX data rates keep `Bps` for compatibility with existing statistics. Recognized alternative units are converted (for example, Fahrenheit to Celsius and bits/s to bytes/s). Conflicting physical dimensions produce an unknown state and a warning instead of mislabeled readings.
+
+The `api_units` and `unit_resolution` attributes show the original API unit and how it was resolved. Unknown sensor types with unknown units require review. Name-based defaults assume the API has not silently changed the physical scale of values.
+
+To upgrade, replace the integration directory, including the new `units.py`, and restart Home Assistant. Check current sensor units before changing or deleting historical statistics.
 
 ## Manual Installation
 

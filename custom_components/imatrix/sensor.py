@@ -13,33 +13,9 @@ from homeassistant.const import (
 )
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from .const import DOMAIN, API_BASE
+from .units import resolve_unit
 
 _LOGGER = logging.getLogger(__name__)
-
-UNIT_MAP = {
-    "Deg. C": UnitOfTemperature.CELSIUS,
-    "%RH": PERCENTAGE,
-    "kPa": UnitOfPressure.KPA,
-    "Volts": UnitOfElectricPotential.VOLT,
-    "V": UnitOfElectricPotential.VOLT,
-    "Bps": "Bps",
-    "bps": "bps",
-    "dB": SIGNAL_STRENGTH_DECIBELS,
-    "Level": PERCENTAGE,
-    "Seconds": UnitOfTime.SECONDS,
-    "s": UnitOfTime.SECONDS,
-    "Thing(s)": None,
-    "Count": None,
-}
-
-DEVICE_CLASS_MAP = {
-    "Deg. C": SensorDeviceClass.TEMPERATURE,
-    "%RH": SensorDeviceClass.HUMIDITY,
-    "kPa": SensorDeviceClass.PRESSURE,
-    "dB": SensorDeviceClass.SIGNAL_STRENGTH,
-    "Level": SensorDeviceClass.BATTERY,
-}
-
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     entry_data = hass.data.get(DOMAIN, {}).get(config_entry.entry_id)
@@ -230,17 +206,31 @@ class IMatrixSensorEntity(SensorEntity):
         self._value = value
         self._sensor_id = meta.get("id")
         self._name = meta.get("name")
-        self._unit = meta.get("units")
-        self._attr_native_unit_of_measurement = UNIT_MAP.get(self._unit)
-        if self._unit not in ("Seconds", "s", "Volts", "V"):
-            self._attr_device_class = DEVICE_CLASS_MAP.get(self._unit)
-        if self._unit in ("Volts", "V"):
+        self._unit_resolution = resolve_unit(self._name, meta.get("units"))
+        resolution = self._unit_resolution
+        self._attr_native_unit_of_measurement = resolution.unit
+        self._attr_device_class = (
+            SensorDeviceClass(resolution.device_class) if resolution.device_class else None
+        )
+        self._attr_extra_state_attributes = {
+            "api_units": meta.get("units"),
+            "unit_resolution": resolution.source,
+        }
+        if resolution.source in ("conflict", "unknown"):
+            _LOGGER.warning("Unsupported unit for %s: %r (%s)",
+                            self.name, meta.get("units"), resolution.source)
+        elif resolution.source == "sensor_name":
+            _LOGGER.debug("Using sensor profile for %s; API unit: %r",
+                          self.name, meta.get("units"))
+        if resolution.kind == "voltage":
             self._attr_icon = "mdi:sine-wave"
-        elif self._unit in ("Seconds", "s"):
+        elif resolution.kind == "duration":
             self._attr_icon = "mdi:clock-outline"
-        elif self._unit == "Count" and self._name.startswith("Open"):
+        elif resolution.kind == "count" and (self._name or "").casefold().startswith("open"):
             self._attr_icon = "mdi:door-open"
-        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_state_class = (
+            SensorStateClass.MEASUREMENT if resolution.supported else None
+        )
 
     @property
     def name(self):
@@ -256,10 +246,16 @@ class IMatrixSensorEntity(SensorEntity):
             val = float(self._value)
         except Exception:
             return None
-        if self._unit in ("Seconds", "s", "Count", "Thing(s)"):
+        resolution = self._unit_resolution
+        if not resolution.supported:
+            return None
+        val = val * resolution.scale + resolution.offset
+        if resolution.kind in ("duration", "count"):
             return round(val)
-        elif self._unit in ("Volts", "V"):
+        if resolution.kind == "voltage":
             return round(val, 2)
+        if resolution.kind == "angle":
+            return round(val, 6)
         return round(val, 1)
 
     @property
